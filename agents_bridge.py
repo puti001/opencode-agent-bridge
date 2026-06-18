@@ -49,7 +49,6 @@ def query_antigravity_llm(api_key, conversation_history, opencode_msg):
         {"role": "system", "content": system_prompt}
     ]
     
-    # 放入歷史紀錄 (只拿最近5條)
     for msg in conversation_history[-5:]:
         info = msg.get("info", {})
         role = info.get("role")
@@ -112,15 +111,29 @@ def main():
 
     print(f"🤖 雙 Agent 通訊橋接器已啟動。正在監聽 Session: {session_id} ...")
     
-    # 預先載入現有的最後一條訊息 ID 避免啟動時重複回覆
+    # 智慧初始化：如果最後一條是 OpenCode 發出的，不設為已處理，以觸發第一輪接話
     last_processed_msg_id = None
     try:
         req = urllib.request.Request(f"{opencode_url}/session/{session_id}/message")
         with urllib.request.urlopen(req) as res:
             messages = json.loads(res.read().decode('utf-8'))
             if messages:
-                last_processed_msg_id = messages[-1].get("info", {}).get("id")
-                print(f"初始化：最後已處理訊息 ID 設為 {last_processed_msg_id}")
+                last_msg = messages[-1]
+                info = last_msg.get("info", {})
+                role = info.get("role")
+                msg_id = info.get("id")
+                
+                parts = last_msg.get("parts", [])
+                text_content = ""
+                for part in parts:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        text_content += part.get("text", "")
+                
+                if role == "assistant" and "【Antigravity】" not in text_content:
+                    print("初始化：最新訊息為 OpenCode 回覆，等待主迴圈進行第一輪接話。")
+                else:
+                    last_processed_msg_id = msg_id
+                    print(f"初始化：最後已處理訊息 ID 設為 {last_processed_msg_id}")
     except Exception:
         pass
 
@@ -139,7 +152,6 @@ def main():
                 msg_id = info.get("id")
                 role = info.get("role")
                 
-                # 在 OpenCode API 中，角色是 "assistant"
                 if role == "assistant" and msg_id != last_processed_msg_id:
                     parts = last_msg.get("parts", [])
                     text_content = ""
