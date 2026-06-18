@@ -42,25 +42,28 @@ def query_antigravity_llm(api_key, conversation_history, opencode_msg):
         "你現在是 Antigravity（主控端 AI 編碼助手）。\n"
         "你正在與副控執行端 Agent (OpenCode) 進行直接對話與協作復盤。\n"
         "OpenCode 剛剛向你發送了訊息，請你以繁體中文給它一個簡潔、專業、 casual 且直接的回覆。\n"
-        "在你的回答開頭，請標註「【Antigravity】」，以便用戶區分是誰在說話。"
+        "在你的回答開頭，請標註「【Antigravity】」，以便用戶與系統區分是誰在說話。"
     )
 
     messages = [
         {"role": "system", "content": system_prompt}
     ]
     
+    # 放入歷史紀錄 (只拿最近5條)
     for msg in conversation_history[-5:]:
-        role = msg.get("role")
-        api_role = "assistant" if role == "model" else "user"
+        info = msg.get("info", {})
+        role = info.get("role")
+        api_role = "assistant" if role == "assistant" else "user"
         
         parts = msg.get("parts", [])
         text_content = ""
         for part in parts:
-            if isinstance(part, dict) and "text" in part:
-                text_content += part["text"]
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_content += part.get("text", "")
             elif isinstance(part, str):
                 text_content += part
-        messages.append({"role": api_role, "content": text_content})
+        if text_content.strip():
+            messages.append({"role": api_role, "content": text_content})
 
     messages.append({"role": "user", "content": opencode_msg})
 
@@ -108,7 +111,18 @@ def main():
         sys.exit(1)
 
     print(f"🤖 雙 Agent 通訊橋接器已啟動。正在監聽 Session: {session_id} ...")
+    
+    # 預先載入現有的最後一條訊息 ID 避免啟動時重複回覆
     last_processed_msg_id = None
+    try:
+        req = urllib.request.Request(f"{opencode_url}/session/{session_id}/message")
+        with urllib.request.urlopen(req) as res:
+            messages = json.loads(res.read().decode('utf-8'))
+            if messages:
+                last_processed_msg_id = messages[-1].get("info", {}).get("id")
+                print(f"初始化：最後已處理訊息 ID 設為 {last_processed_msg_id}")
+    except Exception:
+        pass
 
     while True:
         try:
@@ -121,25 +135,38 @@ def main():
                     continue
                 
                 last_msg = messages[-1]
-                msg_id = last_msg.get("id")
-                role = last_msg.get("role")
+                info = last_msg.get("info", {})
+                msg_id = info.get("id")
+                role = info.get("role")
                 
-                if role == "model" and msg_id != last_processed_msg_id:
+                # 在 OpenCode API 中，角色是 "assistant"
+                if role == "assistant" and msg_id != last_processed_msg_id:
                     parts = last_msg.get("parts", [])
-                    text_content = "".join([p.get("text", "") if isinstance(p, dict) else p for p in parts])
+                    text_content = ""
+                    for part in parts:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text_content += part.get("text", "")
                     
+                    if not text_content.strip():
+                        time.sleep(5)
+                        continue
+
+                    # 避免自己回覆自己
                     if "【Antigravity】" in text_content:
                         last_processed_msg_id = msg_id
                         continue
 
-                    lower_text = text_content.lower()
-                    if "antigravity" in lower_text or "主控" in lower_text or "傳話" in lower_text or "問他" in lower_text:
-                        print(f"偵測到 OpenCode 的傳話: {text_content[:100]}...")
-                        
-                        reply = query_antigravity_llm(api_key, messages[:-1], text_content)
-                        if reply:
-                            send_to_opencode(reply)
-                            last_processed_msg_id = msg_id
+                    # 檢查結束標記
+                    if "協作結束" in text_content or "討論完畢" in text_content or "已精通" in text_content:
+                        print("偵測到結束標記，不自動接話。")
+                        last_processed_msg_id = msg_id
+                        continue
+
+                    print(f"自動接話：偵測到 OpenCode 新回覆: {text_content[:100]}...")
+                    reply = query_antigravity_llm(api_key, messages[:-1], text_content)
+                    if reply:
+                        send_to_opencode(reply)
+                        last_processed_msg_id = msg_id
                         
             time.sleep(5)
         except KeyboardInterrupt:
