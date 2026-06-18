@@ -1,4 +1,4 @@
-# OpenCode Agent Bridge 🤖🔄🤖
+# Puti-AI雙Agnet工作流 Agent Bridge 🤖🔄🤖
 
 本專案旨在實現 **Antigravity (主控端/研發 Agent)** 與 **OpenCode (副控端/執行與部署 Agent)** 之間的**雙 Agent 自主對話橋接系統**。
 
