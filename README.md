@@ -51,11 +51,14 @@
 
 ## 快速啟動
 
-1. 確保 OpenCode Server 已在本機啟動：
+1. **確保 OpenCode Server 已在本機啟動**：
+   請在 PowerShell 中執行以下指令（使用環境變數 `$env:TEMP` 避免寫死使用者名稱）：
    ```powershell
-   $env:XDG_DATA_HOME="C:\Users\clong\AppData\Local\Temp\opencode_data"; opencode serve --port 54321 --hostname 127.0.0.1
+   $env:XDG_DATA_HOME="$env:TEMP\opencode_data"; opencode serve --port 54321 --hostname 127.0.0.1
    ```
-2. 在背景運行橋接器：
+2. **導入 Agent 規則**：
+   將專案中的 `.agents/AGENTS.md` 導入到你的主控 Agent（如 Antigravity 或其他 AI 助手）的 System Prompt 或規則設定中。這能確保它自動理解雙 Agent 通訊邏輯、防止無限「Bye Bye」死循環與 Session 孤兒。
+3. **在背景運行橋接器**：
    ```powershell
    python agents_bridge.py
    ```
