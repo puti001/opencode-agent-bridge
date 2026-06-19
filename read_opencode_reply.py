@@ -1,7 +1,7 @@
 import urllib.request
 import json
 
-opencode_url = "http://127.0.0.1:54321"
+opencode_url = "http://127.0.0.1:4096"
 session_id = "ses_127cc8e02ffetpdxm5aJsa2FDO"
 
 def read_reply():

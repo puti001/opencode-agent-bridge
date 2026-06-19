@@ -8,7 +8,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
-opencode_url = "http://127.0.0.1:54321"
+opencode_url = "http://127.0.0.1:4096"
 session_id = "ses_127cc8e02ffetpdxm5aJsa2FDO"
 
 def get_latest_session_id():
