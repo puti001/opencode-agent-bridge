@@ -104,11 +104,32 @@ def send_to_opencode(reply_text):
         print(f"發送回覆失敗: {e}")
         return False
 
+def get_latest_session_id():
+    try:
+        req = urllib.request.Request(f"{opencode_url}/session")
+        with urllib.request.urlopen(req, timeout=5) as res:
+            sessions = json.loads(res.read().decode('utf-8'))
+            if sessions:
+                # 排序並找出 updated 時間戳最新的 Session
+                latest = max(sessions, key=lambda s: s.get("updated", 0))
+                return latest.get("id")
+    except Exception as e:
+        print(f"取得 Session 列表失敗: {e}")
+    return None
+
 def main():
+    global session_id
     api_key = get_api_key()
     if not api_key:
         print("錯誤：找不到 API 金鑰。")
         sys.exit(1)
+
+    latest_id = get_latest_session_id()
+    if latest_id:
+        session_id = latest_id
+        print(f"✨ 成功動態路由至最新 Session: {session_id}")
+    else:
+        print(f"⚠️ 無法取得最新 Session，將使用預設 Session: {session_id}")
 
     print(f"🤖 雙 Agent 通訊橋接器已啟動。正在監聽 Session: {session_id} ...")
     
@@ -116,7 +137,7 @@ def main():
     last_processed_msg_id = None
     try:
         req = urllib.request.Request(f"{opencode_url}/session/{session_id}/message")
-        with urllib.request.urlopen(req) as res:
+        with urllib.request.urlopen(req, timeout=10) as res:
             messages = json.loads(res.read().decode('utf-8'))
             if messages:
                 last_msg = messages[-1]
@@ -140,8 +161,15 @@ def main():
 
     while True:
         try:
+            # 動態檢查最新 Session ID，以便用戶切換專案或 Session 時橋接器能自動跟隨
+            latest_id = get_latest_session_id()
+            if latest_id and latest_id != session_id:
+                print(f"🔄 偵測到用戶切換至新 Session: {latest_id}，重新路由監聽...")
+                session_id = latest_id
+                last_processed_msg_id = None
+
             req = urllib.request.Request(f"{opencode_url}/session/{session_id}/message")
-            with urllib.request.urlopen(req) as res:
+            with urllib.request.urlopen(req, timeout=10) as res:
                 messages = json.loads(res.read().decode('utf-8'))
                 
                 if not messages:
@@ -169,9 +197,10 @@ def main():
                         last_processed_msg_id = msg_id
                         continue
 
-                    # 檢查結束標記
-                    if "協作結束" in text_content or "討論完畢" in text_content or "已精通" in text_content:
-                        print("偵測到結束標記，不自動接話。")
+                    # 檢查結束與待命標記
+                    stop_keywords = ["協作結束", "討論完畢", "已精通", "DONE", "acknowledged", "已就緒", "待命"]
+                    if any(kw in text_content or kw.lower() in text_content.lower() for kw in stop_keywords):
+                        print(f"偵測到結束或待命標記 '{text_content[:20]}...'，不自動接話。")
                         last_processed_msg_id = msg_id
                         continue
 

@@ -11,13 +11,31 @@ if hasattr(sys.stderr, 'reconfigure'):
 opencode_url = "http://127.0.0.1:54321"
 session_id = "ses_127cc8e02ffetpdxm5aJsa2FDO"
 
+def get_latest_session_id():
+    try:
+        req = urllib.request.Request(f"{opencode_url}/session")
+        with urllib.request.urlopen(req, timeout=5) as res:
+            sessions = json.loads(res.read().decode('utf-8'))
+            if sessions:
+                # 排序並找出 updated 時間戳最新的 Session
+                latest = max(sessions, key=lambda s: s.get("updated", 0))
+                return latest.get("id")
+    except Exception as e:
+        print(f"取得 Session 列表失敗: {e}")
+    return None
+
 def print_all():
+    global session_id
+    latest_id = get_latest_session_id()
+    if latest_id:
+        session_id = latest_id
+    
     try:
         req = urllib.request.Request(f"{opencode_url}/session/{session_id}/message")
         with urllib.request.urlopen(req) as res:
             messages = json.loads(res.read().decode('utf-8'))
-            print("--- 最後 5 條訊息的完整內容 ---")
-            for idx, msg in enumerate(messages[-5:]):
+            print("--- 最後 15 條訊息的完整內容 ---")
+            for idx, msg in enumerate(messages[-15:]):
                 sender = msg.get("sender") or msg.get("author") or "未知"
                 parts = msg.get("parts", [])
                 text_content = ""
